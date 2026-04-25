@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>間隔複習系統</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8;
+    --surface: #fdfaf4;
+    --surface2: #f0ead8;
+    --ink: #1a1610;
+    --ink2: #4a3f2f;
+    --ink3: #8a7a65;
+    --accent: #c8421a;
+    --accent2: #e8a030;
+    --green: #2d7a4f;
+    --blue: #1e5f8a;
+    --border: #d4c8b0;
+    --shadow: rgba(26,22,16,0.12);
+    --radius: 12px;
+    --font-serif: 'Noto Serif TC', serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-serif);
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.5;
+  }
+  #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em; flex: 1; }
+  header h1 span { color: var(--accent2); }
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.7);
+  }
+  .user-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--accent2);
+    object-fit: cover;
+  }
+  .sync-indicator {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .sync-indicator.syncing { background: var(--accent2); animation: pulse 1s infinite; }
+  .sync-indicator.offline { background: #c0392b; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  /* ── NAV TABS ── */
+  nav {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border-bottom: 2px solid var(--border);
+    padding: 0 16px;
+    overflow-x: auto;
+  }
+  nav button {
+    font-family: var(--font-serif);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 12px 20px;
+    border: none;
+    background: none;
+    color: var(--ink3);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  nav button:hover { color: var(--ink); }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-badge {
+    background: var(--accent);
+    color: white;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    padding: 1px 7px;
+    font-family: var(--font-mono);
+  }
+  .tab-badge.green { background: var(--green); }
+
+  /* ── MAIN ── */
+  main { flex: 1; padding: 24px 16px; max-width: 800px; margin: 0 auto; width: 100%; }
+
+  /* ── LOGIN SCREEN ── */
+  .login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    text-align: center;
+    padding: 32px 16px;
+  }
+  .login-logo { font-size: 4rem; margin-bottom: 16px; }
+  .login-title { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; }
+  .login-title span { color: var(--accent); }
+  .login-desc { color: var(--ink3); font-size: 0.95rem; line-height: 1.7; margin-bottom: 32px; max-width: 360px; }
+  .btn-google {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 28px;
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+  .btn-google:hover { border-color: var(--accent); box-shadow: 0 4px 16px var(--shadow); transform: translateY(-1px); }
+  .btn-google svg { width: 22px; height: 22px; }
+
+  /* ── LOADING ── */
+  .loading-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    gap: 16px;
+    color: var(--ink3);
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── SECTION ── */
+  .section-title { font-size: 1.4rem; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .section-desc { font-size: 0.85rem; color: var(--ink3); margin-bottom: 20px; line-height: 1.6; }
+
+  /* ── FILE CARDS ── */
+  .file-list { display: flex; flex-direction: column; gap: 12px; }
+  .file-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: all 0.18s;
+    box-shadow: 0 2px 8px var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .file-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--accent2);
+    border-radius: 4px 0 0 4px;
+  }
+  .file-card:hover { border-color: var(--accent); box-shadow: 0 4px 16px var(--shadow); transform: translateY(-1px); }
+  .file-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .file-name { font-size: 1rem; font-weight: 600; color: var(--ink); }
+  .file-meta { font-size: 0.78rem; color: var(--ink3); font-family: var(--font-mono); display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+
+  .btn-icon {
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--ink2);
+    transition: all 0.15s;
+    font-family: var(--font-serif);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-icon.danger:hover { border-color: #c0392b; color: #c0392b; }
+
+  /* ── BUTTONS ── */
+  .btn { font-family: var(--font-serif); font-weight: 600; border: none; border-radius: 10px; padding: 10px 20px; cursor: pointer; transition: all 0.15s; font-size: 0.92rem; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--accent); color: white; box-shadow: 0 2px 8px rgba(200,66,26,0.3); }
+  .btn-primary:hover { background: #a83515; transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface2); color: var(--ink2); border: 1.5px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--ink2); }
+  .btn-green { background: var(--green); color: white; box-shadow: 0 2px 8px rgba(45,122,79,0.3); }
+  .btn-green:hover { background: #235e3c; }
+  .btn-danger { background: #c0392b; color: white; }
+
+  /* ── MASTERY BUTTONS ── */
+  .mastery-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  @media (min-width: 480px) { .mastery-row { grid-template-columns: repeat(4, 1fr); } }
+  .mastery-btn { font-family: var(--font-serif); font-weight: 600; padding: 12px 8px; border: 2px solid; border-radius: 10px; cursor: pointer; font-size: 0.88rem; transition: all 0.15s; text-align: center; line-height: 1.3; }
+  .mastery-btn.later { border-color: var(--ink3); color: var(--ink3); background: white; }
+  .mastery-btn.later:hover { background: var(--ink3); color: white; }
+  .mastery-btn.wrong { border-color: #c0392b; color: #c0392b; background: white; }
+  .mastery-btn.wrong:hover { background: #c0392b; color: white; }
+  .mastery-btn.basic { border-color: var(--accent2); color: #b07020; background: white; }
+  .mastery-btn.basic:hover { background: var(--accent2); color: white; }
+  .mastery-btn.mastered { border-color: var(--green); color: var(--green); background: white; }
+  .mastery-btn.mastered:hover { background: var(--green); color: white; }
+  .mastery-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── FLASHCARD ── */
+  .flashcard-wrap { display: flex; flex-direction: column; align-items: center; padding: 8px 0; }
+  .flashcard-progress { font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink3); margin-bottom: 16px; align-self: flex-start; }
+  .flashcard {
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 24px;
+    width: 100%;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 6px 24px var(--shadow);
+    position: relative;
+    animation: cardIn 0.25s ease;
+  }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .flashcard-file-label { position: absolute; top: 12px; left: 16px; font-size: 0.72rem; color: var(--ink3); font-family: var(--font-mono); background: var(--surface2); padding: 2px 8px; border-radius: 99px; }
+  .flashcard-review-count { position: absolute; top: 12px; right: 16px; font-size: 0.72rem; color: var(--ink3); font-family: var(--font-mono); background: var(--surface2); padding: 2px 8px; border-radius: 99px; }
+  .flashcard-q { font-size: 1.15rem; font-weight: 600; color: var(--ink); line-height: 1.6; white-space: pre-wrap; }
+  .flashcard-a { margin-top: 20px; padding-top: 20px; border-top: 1.5px dashed var(--border); font-size: 1rem; color: var(--ink2); line-height: 1.7; white-space: pre-wrap; animation: fadeIn 0.3s ease; width: 100%; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ── MODAL ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(26,22,16,0.6); display: flex; align-items: center; justify-content: center; z-index: 500; padding: 16px; animation: fadeIn 0.2s; }
+  .modal { background: var(--surface); border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 480px; box-shadow: 0 16px 48px rgba(0,0,0,0.25); max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 18px; color: var(--ink); }
+
+  /* ── FORM ── */
+  label { display: block; font-size: 0.83rem; font-weight: 600; color: var(--ink2); margin-bottom: 5px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  input[type=text], textarea { width: 100%; font-family: var(--font-serif); font-size: 0.95rem; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--ink); outline: none; transition: border-color 0.15s; resize: vertical; }
+  input[type=text]:focus, textarea:focus { border-color: var(--accent); }
+  textarea { min-height: 90px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+
+  /* ── CARD LIST ── */
+  .card-item { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .card-item.reviewed { opacity: 0.6; }
+  .card-item-content { flex: 1; min-width: 0; }
+  .card-q { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+  .card-a { font-size: 0.82rem; color: var(--ink3); margin-top: 3px; white-space: pre-wrap; }
+  .card-status { font-size: 0.7rem; font-family: var(--font-mono); padding: 2px 8px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+  .status-new { background: #e8f4fd; color: var(--blue); }
+  .status-reviewed { background: #edf7ed; color: var(--green); }
+  .status-graduated { background: #fef9e7; color: #b07020; }
+  .next-label { font-size: 0.75rem; font-family: var(--font-mono); color: var(--accent); background: rgba(200,66,26,0.08); padding: 2px 8px; border-radius: 99px; }
+
+  /* ── MISC ── */
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--ink3); }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-state p { font-size: 0.95rem; line-height: 1.7; }
+  .session-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .session-header h2 { font-size: 1rem; font-weight: 600; color: var(--ink2); flex: 1; }
+  .done-screen { text-align: center; padding: 40px 24px; }
+  .done-screen .big-icon { font-size: 4rem; margin-bottom: 16px; }
+  .done-screen h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+  .done-screen p { color: var(--ink3); font-size: 0.9rem; line-height: 1.7; margin-bottom: 20px; }
+  .grad-badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #f6d365, #fda085); color: white; padding: 4px 12px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; }
+  .review-file-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: 0 2px 8px var(--shadow); position: relative; overflow: hidden; }
+  .review-file-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); border-radius: 4px 0 0 4px; }
+  .review-file-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .gap-8 { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .mt-4 { margin-top: 4px; }
+  .text-sm { font-size: 0.85rem; color: var(--ink3); }
+  .text-mono { font-family: var(--font-mono); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--ink);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 99px;
+    font-size: 0.85rem;
+    font-family: var(--font-serif);
+    z-index: 9000;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>📖 間隔<span>複習</span>系統</h1>
+    <div class="user-info" id="user-info" style="display:none">
+      <div class="sync-indicator" id="sync-dot"></div>
+      <img class="user-avatar" id="user-avatar" src="" alt="">
+      <span id="user-name"></span>
+      <button class="btn-icon" style="color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2);font-size:0.75rem;" onclick="signOut()">登出</button>
+    </div>
+  </header>
+  <nav id="nav-bar" style="display:none">
+    <button id="tab-review" class="active" onclick="switchTab('review')">
+      📅 複習區 <span id="badge-review" class="tab-badge" style="display:none">0</span>
+    </button>
+    <button id="tab-files" onclick="switchTab('files')">🗂 檔案區</button>
+    <button id="tab-grad" onclick="switchTab('grad')">
+      🎓 畢業區 <span id="badge-grad" class="tab-badge green" style="display:none">0</span>
+    </button>
+  </nav>
+  <main id="main-content">
+    <div class="loading-screen"><div class="spinner"></div><p>載入中…</p></div>
+  </main>
+</div>
+
+<div id="modal" class="modal-overlay" style="display:none" onclick="modalOverlayClick(event)">
+  <div class="modal" id="modal-inner"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut as fbSignOut }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ══════════════════════════════════════════════
+// FIREBASE CONFIG
+// ══════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyDSeEroeG4kKf4iLQ9pcjn_5VhyO48lEU8",
+  authDomain: "spaced-review-844a1.firebaseapp.com",
+  projectId: "spaced-review-844a1",
+  storageBucket: "spaced-review-844a1.firebasestorage.app",
+  messagingSenderId: "858891235757",
+  appId: "1:858891235757:web:f2717564e96c0ad0347124"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let currentUser = null;
+let localData = { files: [] };   // in-memory cache
+let currentTab = 'review';
+let reviewSession = null;
+let fileViewState = null;
+let gradSession = null;
+let unsubscribeSnapshot = null;
+let isSaving = false;
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+onAuthStateChanged(auth, async user => {
+  if (user) {
+    currentUser = user;
+    document.getElementById('user-info').style.display = 'flex';
+    document.getElementById('nav-bar').style.display = 'flex';
+    document.getElementById('user-avatar').src = user.photoURL || '';
+    document.getElementById('user-name').textContent = user.displayName || user.email;
+    await loadFromFirestore();
+    subscribeRealtime();
+  } else {
+    currentUser = null;
+    document.getElementById('user-info').style.display = 'none';
+    document.getElementById('nav-bar').style.display = 'none';
+    if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+    renderLogin();
+  }
+});
+
+window.googleSignIn = async function() {
+  try {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  } catch(e) {
+    showToast('登入失敗：' + e.message);
+  }
+};
+
+window.signOut = async function() {
+  reviewSession = null; fileViewState = null; gradSession = null;
+  await fbSignOut(auth);
+};
+
+// ══════════════════════════════════════════════
+// FIRESTORE
+// ══════════════════════════════════════════════
+function userDocRef() {
+  return doc(db, 'users', currentUser.uid);
+}
+
+async function loadFromFirestore() {
+  try {
+    setSyncState('syncing');
+    const snap = await getDoc(userDocRef());
+    if (snap.exists()) {
+      localData = snap.data() || { files: [] };
+      if (!localData.files) localData.files = [];
+    } else {
+      localData = { files: [] };
+    }
+    setSyncState('ok');
+    render();
+  } catch(e) {
+    setSyncState('offline');
+    showToast('載入失敗，請檢查網路連線');
+    render();
+  }
+}
+
+async function saveToFirestore() {
+  if (!currentUser || isSaving) return;
+  isSaving = true;
+  setSyncState('syncing');
+  try {
+    await setDoc(userDocRef(), localData);
+    setSyncState('ok');
+  } catch(e) {
+    setSyncState('offline');
+    showToast('同步失敗，請檢查網路');
+  } finally {
+    isSaving = false;
+  }
+}
+
+function subscribeRealtime() {
+  if (unsubscribeSnapshot) unsubscribeSnapshot();
+  unsubscribeSnapshot = onSnapshot(userDocRef(), snap => {
+    if (snap.exists() && !isSaving) {
+      const remote = snap.data();
+      if (remote && JSON.stringify(remote) !== JSON.stringify(localData)) {
+        localData = remote;
+        if (!localData.files) localData.files = [];
+        render();
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════
+function setSyncState(state) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-indicator' + (state === 'syncing' ? ' syncing' : state === 'offline' ? ' offline' : '');
+}
+
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+}
+
+function humanizeDuration(ms) {
+  if (ms <= 0) return '現在';
+  const m = Math.floor(ms/60000), h = Math.floor(ms/3600000), d = Math.floor(ms/86400000);
+  if (d >= 1) return `${d} 天後`;
+  if (h >= 1) return `${h} 小時後`;
+  if (m >= 1) return `${m} 分鐘後`;
+  return '不久後';
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════
+// INTERVALS
+// ══════════════════════════════════════════════
+const INTERVALS = [86400000,86400000,259200000,432000000,604800000,1209600000,2592000000];
+function intervalFor(rc) { return rc < INTERVALS.length ? INTERVALS[rc] : null; }
+
+// ══════════════════════════════════════════════
+// TAB
+// ══════════════════════════════════════════════
+window.switchTab = function(tab) {
+  currentTab = tab;
+  reviewSession = null; fileViewState = null; gradSession = null;
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  render();
+};
+
+// ══════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════
+function render() {
+  if (!currentUser) { renderLogin(); return; }
+  updateBadges();
+  const el = document.getElementById('main-content');
+  if (currentTab === 'review') renderReview(el);
+  else if (currentTab === 'files') renderFiles(el);
+  else renderGrad(el);
+}
+
+function renderLogin() {
+  document.getElementById('nav-bar').style.display = 'none';
+  document.getElementById('main-content').innerHTML = `
+    <div class="login-screen">
+      <div class="login-logo">📖</div>
+      <div class="login-title">間隔<span>複習</span>系統</div>
+      <div class="login-desc">基於艾賓浩斯遺忘曲線的智慧複習系統。<br>登入後，你的資料將在所有裝置自動同步。</div>
+      <button class="btn-google" onclick="googleSignIn()">
+        <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        使用 Google 帳號登入
+      </button>
+    </div>
+  `;
+}
+
+function updateBadges() {
+  const now = Date.now();
+  const dueCount = localData.files.filter(f =>
+    f.cards.some(c => !c.graduated && c.nextReview != null && c.nextReview <= now)
+  ).length;
+  const rb = document.getElementById('badge-review');
+  if (dueCount > 0) { rb.textContent = dueCount; rb.style.display = ''; }
+  else rb.style.display = 'none';
+
+  const gradCount = localData.files.filter(f => f.cards.some(c => c.graduated)).length;
+  const gb = document.getElementById('badge-grad');
+  if (gradCount > 0) { gb.textContent = gradCount; gb.style.display = ''; }
+  else gb.style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
+// REVIEW ZONE
+// ══════════════════════════════════════════════
+function renderReview(el) {
+  if (reviewSession) { renderReviewSession(el); return; }
+  const now = Date.now();
+  const dueFiles = localData.files.map(f => ({
+    ...f,
+    dueCards: f.cards.filter(c => !c.graduated && c.nextReview != null && c.nextReview <= now)
+  })).filter(f => f.dueCards.length > 0);
+
+  let html = `<div class="section-title">📅 複習區</div>
+    <div class="section-desc">以下是今天需要複習的檔案，點擊「開始複習」進行複習。</div>`;
+
+  if (dueFiles.length === 0) {
+    html += `<div class="empty-state"><div class="icon">✨</div><p>目前沒有需要複習的卡片！<br>所有卡片都已在排程中，請稍後回來。</p></div>`;
+  } else {
+    html += `<div class="file-list">`;
+    dueFiles.forEach(f => {
+      html += `<div class="review-file-card">
+        <div class="review-file-card-header">
+          <div>
+            <div class="file-name">${esc(f.name)}</div>
+            <div class="file-meta"><span>📋 ${f.dueCards.length} 張待複習</span></div>
+          </div>
+          <button class="btn btn-primary" onclick="startReviewSession('${f.id}',true)">開始複習</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
+window.startReviewSession = function(fileId, fromReviewZone) {
+  const file = localData.files.find(f => f.id === fileId);
+  if (!file) return;
+  const now = Date.now();
+  let cards;
+  if (fromReviewZone) {
+    cards = file.cards.filter(c => !c.graduated && c.nextReview != null && c.nextReview <= now);
+  } else {
+    cards = file.cards.filter(c => !c.fileReviewed && !c.graduated);
+  }
+  cards = shuffle(cards);
+  if (cards.length === 0) { showToast('沒有待複習的卡片！'); return; }
+  reviewSession = { fileId, cards, idx: 0, fromReviewZone, showAnswer: false };
+  render();
+};
+
+function renderReviewSession(el) {
+  const { fileId, cards, idx, showAnswer } = reviewSession;
+  const file = localData.files.find(f => f.id === fileId);
+  if (!file || idx >= cards.length) { renderReviewDone(el); return; }
+
+  const cardRef = cards[idx];
+  const liveCard = file.cards.find(c => c.id === cardRef.id);
+  const rc = liveCard ? liveCard.reviewCount : 0;
+
+  let answerHtml = '', actionHtml = '';
+  if (showAnswer) {
+    answerHtml = `<div class="flashcard-a">${esc(cardRef.answer)}</div>`;
+    actionHtml = `<div class="mastery-row">
+      <button class="mastery-btn later" onclick="applyMastery('later')">稍後回答<br><small style="font-size:0.7em;opacity:0.8">1小時後</small></button>
+      <button class="mastery-btn wrong" onclick="applyMastery('wrong')">回答錯誤<br><small style="font-size:0.7em;opacity:0.8">1分鐘後</small></button>
+      <button class="mastery-btn basic" onclick="applyMastery('basic')">基礎</button>
+      <button class="mastery-btn mastered" onclick="applyMastery('mastered')">精熟</button>
+    </div>`;
+  } else {
+    actionHtml = `<div style="margin-top:16px;text-align:center;">
+      <button class="btn btn-primary" onclick="revealAnswer()">公布答案</button>
+    </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="session-header">
+      <button class="btn btn-secondary" onclick="exitSession()">← 退出</button>
+      <h2>${esc(file.name)}</h2>
+    </div>
+    <div class="flashcard-wrap">
+      <div class="flashcard-progress">第 ${idx+1} / ${cards.length} 題</div>
+      <div class="flashcard">
+        <div class="flashcard-file-label">${esc(file.name)}</div>
+        <div class="flashcard-review-count">複習次數 ${rc}</div>
+        <div class="flashcard-q">${esc(cardRef.question)}</div>
+        ${answerHtml}
+      </div>
+      ${actionHtml}
+    </div>`;
+}
+
+window.revealAnswer = function() { if (reviewSession) { reviewSession.showAnswer = true; render(); } };
+
+window.applyMastery = async function(type) {
+  if (!reviewSession) return;
+  // Disable buttons immediately to prevent double-tap
+  document.querySelectorAll('.mastery-btn').forEach(b => b.disabled = true);
+
+  const { fileId, cards, idx } = reviewSession;
+  const cardRef = cards[idx];
+  const now = Date.now();
+
+  const file = localData.files.find(f => f.id === fileId);
+  if (!file) return;
+  const liveCard = file.cards.find(c => c.id === cardRef.id);
+  if (!liveCard) return;
+
+  if (type === 'later') {
+    liveCard.nextReview = now + 3600000;
+    reviewSession.cards.splice(idx, 1);
+  } else if (type === 'wrong') {
+    liveCard.nextReview = now + 60000;
+    const removed = reviewSession.cards.splice(idx, 1)[0];
+    reviewSession.cards.push(removed);
+  } else {
+    liveCard.reviewCount = (liveCard.reviewCount || 0) + 1;
+    liveCard.fileReviewed = true;
+    const interval = intervalFor(liveCard.reviewCount);
+    if (interval === null) {
+      liveCard.graduated = true;
+      liveCard.nextReview = null;
+      showToast('🎓 卡片畢業！');
+    } else {
+      liveCard.nextReview = now + interval;
+    }
+    reviewSession.cards.splice(idx, 1);
+  }
+
+  reviewSession.showAnswer = false;
+  if (reviewSession.cards.length === 0) { reviewSession.done = true; }
+
+  await saveToFirestore();
+  render();
+};
+
+window.exitSession = function() { reviewSession = null; render(); };
+
+function renderReviewDone(el) {
+  el.innerHTML = `<div class="done-screen">
+    <div class="big-icon">🎉</div>
+    <h2>複習完成！</h2>
+    <p>這批卡片已全部複習完畢。<br>系統已記錄下次複習時間。</p>
+    <button class="btn btn-primary" onclick="exitSession()">返回</button>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// FILE ZONE
+// ══════════════════════════════════════════════
+function renderFiles(el) {
+  if (reviewSession) { renderReviewSession(el); return; }
+  if (fileViewState) { renderFileView(el); return; }
+
+  let html = `<div class="row-between" style="margin-bottom:20px;">
+    <div>
+      <div class="section-title">🗂 檔案區</div>
+      <div class="section-desc">管理你的複習檔案與卡片。</div>
+    </div>
+    <button class="btn btn-primary" onclick="openAddFile()">＋ 新增檔案</button>
+  </div>`;
+
+  if (localData.files.length === 0) {
+    html += `<div class="empty-state"><div class="icon">📂</div><p>還沒有任何檔案。<br>點擊「新增檔案」開始建立你的複習卡片！</p></div>`;
+  } else {
+    html += `<div class="file-list">`;
+    localData.files.forEach(f => {
+      const total = f.cards.length;
+      const pending = f.cards.filter(c => !c.fileReviewed && !c.graduated).length;
+      const reviewed = f.cards.filter(c => c.fileReviewed).length;
+      const graduated = f.cards.filter(c => c.graduated).length;
+      html += `<div class="file-card" onclick="openFile('${f.id}')">
+        <div class="file-card-header">
+          <div class="file-name">${esc(f.name)}</div>
+          <div style="display:flex;gap:6px;flex-shrink:0" onclick="event.stopPropagation()">
+            <button class="btn-icon" onclick="openRenameFile('${f.id}')">✏️ 重命名</button>
+            <button class="btn-icon danger" onclick="confirmDeleteFile('${f.id}')">🗑</button>
+          </div>
+        </div>
+        <div class="file-meta">
+          <span>📋 共 ${total} 張</span>
+          ${pending > 0 ? `<span style="color:var(--accent)">⏳ ${pending} 待初始複習</span>` : ''}
+          ${reviewed > 0 ? `<span style="color:var(--green)">✅ ${reviewed} 已複習</span>` : ''}
+          ${graduated > 0 ? `<span style="color:#b07020">🎓 ${graduated} 畢業</span>` : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
+window.openFile = function(fileId) { fileViewState = { fileId }; render(); };
+
+function renderFileView(el) {
+  if (reviewSession) { renderReviewSession(el); return; }
+  const file = localData.files.find(f => f.id === fileViewState.fileId);
+  if (!file) { fileViewState = null; render(); return; }
+
+  const pending = file.cards.filter(c => !c.fileReviewed && !c.graduated);
+  const reviewed = file.cards.filter(c => c.fileReviewed || c.graduated);
+
+  let html = `<div class="session-header">
+    <button class="btn btn-secondary" onclick="fileViewState=null;render()">← 返回</button>
+    <h2 style="flex:1;font-size:1.1rem;font-weight:700;">${esc(file.name)}</h2>
+  </div>
+  <div class="row" style="margin-bottom:20px;flex-wrap:wrap;gap:8px;">
+    <button class="btn btn-primary" onclick="startReviewSession('${file.id}',false)">▶ 開始複習</button>
+    <button class="btn btn-green" onclick="openAddCard('${file.id}')">＋ 新增卡片</button>
+  </div>`;
+
+  if (file.cards.length === 0) {
+    html += `<div class="empty-state"><div class="icon">🃏</div><p>這個檔案還沒有卡片。</p></div>`;
+  } else {
+    if (pending.length > 0) {
+      html += `<div style="font-size:0.85rem;font-weight:600;color:var(--ink2);margin-bottom:8px;">待複習（${pending.length} 張）</div>`;
+      html += `<div class="gap-8" style="margin-bottom:16px;">`;
+      pending.forEach(c => { html += cardItemHtml(c, file.id, 'new'); });
+      html += `</div>`;
+    }
+    if (reviewed.length > 0) {
+      html += `<div style="font-size:0.85rem;font-weight:600;color:var(--ink2);margin-bottom:8px;">已複習（${reviewed.length} 張）</div>`;
+      html += `<div class="gap-8">`;
+      reviewed.forEach(c => { html += cardItemHtml(c, file.id, c.graduated ? 'graduated' : 'reviewed'); });
+      html += `</div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+function cardItemHtml(c, fileId, status) {
+  const labels = { new:'待複習', reviewed:'已複習', graduated:'🎓 畢業' };
+  const classes = { new:'status-new', reviewed:'status-reviewed', graduated:'status-graduated' };
+  let nextStr = '';
+  if (c.nextReview && !c.graduated) {
+    const diff = c.nextReview - Date.now();
+    nextStr = `<span class="next-label">下次: ${humanizeDuration(diff)}</span>`;
+  }
+  return `<div class="card-item ${status !== 'new' ? 'reviewed' : ''}">
+    <div class="card-item-content">
+      <div class="card-q">${esc(c.question)}</div>
+      <div class="card-a">${esc(c.answer)}</div>
+      <div class="row mt-4" style="gap:6px;flex-wrap:wrap;">
+        <span class="card-status ${classes[status]}">${labels[status]}</span>
+        ${nextStr}
+        <span style="font-size:0.7rem;font-family:var(--font-mono);color:var(--ink3)">複習 ${c.reviewCount} 次</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+      <button class="btn-icon" onclick="openEditCard('${fileId}','${c.id}')">✏️</button>
+      <button class="btn-icon danger" onclick="confirmDeleteCard('${fileId}','${c.id}')">🗑</button>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// GRADUATION ZONE
+// ══════════════════════════════════════════════
+function renderGrad(el) {
+  if (gradSession) { renderGradSession(el); return; }
+  const gradFiles = localData.files.map(f => ({
+    ...f, gradCards: f.cards.filter(c => c.graduated)
+  })).filter(f => f.gradCards.length > 0);
+
+  let html = `<div class="section-title">🎓 畢業區</div>
+    <div class="section-desc">以下是已完成間隔複習的卡片，可供無限次複習。</div>`;
+
+  if (gradFiles.length === 0) {
+    html += `<div class="empty-state"><div class="icon">🌟</div><p>還沒有卡片畢業。<br>持續複習，卡片複習滿7次後就會出現在這裡！</p></div>`;
+  } else {
+    html += `<div class="file-list">`;
+    gradFiles.forEach(f => {
+      html += `<div class="review-file-card">
+        <div class="review-file-card-header">
+          <div>
+            <div class="file-name">${esc(f.name)}</div>
+            <div class="file-meta"><span class="grad-badge">🎓 ${f.gradCards.length} 張畢業卡</span></div>
+          </div>
+          <button class="btn btn-green" onclick="startGradSession('${f.id}')">複習</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  el.innerHTML = html;
+}
+
+window.startGradSession = function(fileId) {
+  const file = localData.files.find(f => f.id === fileId);
+  if (!file) return;
+  const cards = shuffle(file.cards.filter(c => c.graduated));
+  if (cards.length === 0) { showToast('沒有畢業卡片！'); return; }
+  gradSession = { fileId, cards, idx: 0, showAnswer: false };
+  render();
+};
+
+function renderGradSession(el) {
+  const { fileId, cards, idx, showAnswer } = gradSession;
+  const file = localData.files.find(f => f.id === fileId);
+  const card = cards[idx];
+
+  if (!card) {
+    el.innerHTML = `<div class="done-screen">
+      <div class="big-icon">🌟</div><h2>複習完成！</h2>
+      <p>這批畢業卡片都複習了一遍。</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-green" onclick="startGradSession('${fileId}')">再複習一次</button>
+        <button class="btn btn-secondary" onclick="gradSession=null;render()">返回</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  let answerHtml = '', actionHtml = '';
+  if (showAnswer) {
+    answerHtml = `<div class="flashcard-a">${esc(card.answer)}</div>`;
+    actionHtml = `<div style="margin-top:16px;text-align:center;"><button class="btn btn-green" onclick="gradNext()">下一題 →</button></div>`;
+  } else {
+    actionHtml = `<div style="margin-top:16px;text-align:center;"><button class="btn btn-primary" onclick="gradReveal()">公布答案</button></div>`;
+  }
+
+  el.innerHTML = `
+    <div class="session-header">
+      <button class="btn btn-secondary" onclick="gradSession=null;render()">← 退出</button>
+      <h2>${esc(file ? file.name : '')} — 畢業卡</h2>
+    </div>
+    <div class="flashcard-wrap">
+      <div class="flashcard-progress">第 ${idx+1} / ${cards.length} 題</div>
+      <div class="flashcard">
+        <div class="flashcard-file-label">${esc(file ? file.name : '')}</div>
+        <div class="flashcard-review-count grad-badge" style="position:absolute;top:12px;right:16px;font-size:0.7rem;">🎓 畢業</div>
+        <div class="flashcard-q">${esc(card.question)}</div>
+        ${answerHtml}
+      </div>
+      ${actionHtml}
+    </div>`;
+}
+
+window.gradReveal = function() { gradSession.showAnswer = true; render(); };
+window.gradNext = function() { gradSession.idx++; gradSession.showAnswer = false; render(); };
+
+// ══════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════
+window.showModal = function(html) {
+  document.getElementById('modal-inner').innerHTML = html;
+  document.getElementById('modal').style.display = 'flex';
+  setTimeout(() => document.querySelector('#modal-inner input, #modal-inner textarea')?.focus(), 50);
+};
+window.closeModal = function() { document.getElementById('modal').style.display = 'none'; };
+window.modalOverlayClick = function(e) { if (e.target === document.getElementById('modal')) closeModal(); };
+
+// ── Add File ──
+window.openAddFile = function() {
+  showModal(`<h2>新增檔案</h2>
+    <label>檔案名稱</label>
+    <input type="text" id="input-filename" placeholder="例如：英文課第三章">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="doAddFile()">新增</button>
+    </div>`);
+};
+
+window.doAddFile = async function() {
+  const name = document.getElementById('input-filename').value.trim();
+  if (!name) { showToast('請輸入檔案名稱'); return; }
+  localData.files.push({ id: genId(), name, cards: [] });
+  closeModal();
+  await saveToFirestore();
+  render();
+};
+
+// ── Rename File ──
+window.openRenameFile = function(fileId) {
+  const file = localData.files.find(f => f.id === fileId);
+  if (!file) return;
+  showModal(`<h2>重命名檔案</h2>
+    <label>新名稱</label>
+    <input type="text" id="input-rename" value="${esc(file.name)}">
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="doRenameFile('${fileId}')">確認</button>
+    </div>`);
+};
+
+window.doRenameFile = async function(fileId) {
+  const name = document.getElementById('input-rename').value.trim();
+  if (!name) { showToast('請輸入名稱'); return; }
+  const file = localData.files.find(f => f.id === fileId);
+  if (file) file.name = name;
+  closeModal();
+  await saveToFirestore();
+  render();
+};
+
+// ── Delete File ──
+window.confirmDeleteFile = function(fileId) {
+  const file = localData.files.find(f => f.id === fileId);
+  if (!file) return;
+  showModal(`<h2>刪除檔案</h2>
+    <p style="color:var(--ink2);line-height:1.6;">確定要刪除「${esc(file.name)}」嗎？<br>該檔案內所有卡片將一併刪除，且無法復原。</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-danger" onclick="doDeleteFile('${fileId}')">確認刪除</button>
+    </div>`);
+};
+
+window.doDeleteFile = async function(fileId) {
+  localData.files = localData.files.filter(f => f.id !== fileId);
+  closeModal();
+  fileViewState = null;
+  await saveToFirestore();
+  render();
+};
+
+// ── Add Card ──
+window.openAddCard = function(fileId) {
+  showModal(`<h2>新增卡片</h2>
+    <label>題目</label>
+    <textarea id="input-q" placeholder="輸入題目..." rows="3"></textarea>
+    <label>答案</label>
+    <textarea id="input-a" placeholder="輸入答案..." rows="4"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="doAddCard('${fileId}',false)">新增</button>
+      <button class="btn btn-green" onclick="doAddCard('${fileId}',true)">新增並繼續</button>
+    </div>`);
+};
+
+window.doAddCard = async function(fileId, continueAdding) {
+  const q = document.getElementById('input-q').value.trim();
+  const a = document.getElementById('input-a').value.trim();
+  if (!q || !a) { showToast('請填寫題目與答案'); return; }
+  const file = localData.files.find(f => f.id === fileId);
+  if (!file) return;
+  file.cards.push({ id: genId(), question: q, answer: a, reviewCount: 0, nextReview: null, graduated: false, fileReviewed: false, createdAt: Date.now() });
+  await saveToFirestore();
+  if (continueAdding) { openAddCard(fileId); }
+  else { closeModal(); render(); }
+};
+
+// ── Edit Card ──
+window.openEditCard = function(fileId, cardId) {
+  const file = localData.files.find(f => f.id === fileId);
+  const card = file ? file.cards.find(c => c.id === cardId) : null;
+  if (!card) return;
+  showModal(`<h2>編輯卡片</h2>
+    <label>題目</label>
+    <textarea id="edit-q" rows="3">${esc(card.question)}</textarea>
+    <label>答案</label>
+    <textarea id="edit-a" rows="4">${esc(card.answer)}</textarea>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="doEditCard('${fileId}','${cardId}')">儲存</button>
+    </div>`);
+};
+
+window.doEditCard = async function(fileId, cardId) {
+  const q = document.getElementById('edit-q').value.trim();
+  const a = document.getElementById('edit-a').value.trim();
+  if (!q || !a) { showToast('請填寫題目與答案'); return; }
+  const file = localData.files.find(f => f.id === fileId);
+  const card = file ? file.cards.find(c => c.id === cardId) : null;
+  if (card) { card.question = q; card.answer = a; }
+  closeModal();
+  await saveToFirestore();
+  render();
+};
+
+// ── Delete Card ──
+window.confirmDeleteCard = function(fileId, cardId) {
+  showModal(`<h2>刪除卡片</h2>
+    <p style="color:var(--ink2);line-height:1.6;">確定要刪除這張卡片嗎？此操作無法復原。</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-danger" onclick="doDeleteCard('${fileId}','${cardId}')">確認刪除</button>
+    </div>`);
+};
+
+window.doDeleteCard = async function(fileId, cardId) {
+  const file = localData.files.find(f => f.id === fileId);
+  if (file) file.cards = file.cards.filter(c => c.id !== cardId);
+  closeModal();
+  await saveToFirestore();
+  render();
+};
+
+// ══════════════════════════════════════════════
+// KEYBOARD
+// ══════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (document.getElementById('modal').style.display !== 'none') return;
+  if (reviewSession && !reviewSession.done) {
+    if (!reviewSession.showAnswer && e.key === ' ') { e.preventDefault(); revealAnswer(); }
+    if (reviewSession.showAnswer) {
+      if (e.key === '1') applyMastery('later');
+      if (e.key === '2') applyMastery('wrong');
+      if (e.key === '3') applyMastery('basic');
+      if (e.key === '4') applyMastery('mastered');
+    }
+  }
+  if (gradSession) {
+    if (!gradSession.showAnswer && e.key === ' ') { e.preventDefault(); gradReveal(); }
+    if (gradSession.showAnswer && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); gradNext(); }
+  }
+});
+
+// Auto refresh every minute
+setInterval(() => { if (currentUser && currentTab === 'review' && !reviewSession) render(); }, 60000);
+</script>
+</body>
+</html>
